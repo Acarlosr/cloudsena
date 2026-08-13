@@ -11,6 +11,19 @@ head_() { printf "\n\033[1m%s\033[0m\n" "$1"; }
 
 printf "\n\033[1;35m CloudSena — diagnóstico do ambiente\033[0m\n"
 
+# O Make roda este script a partir da raiz do projeto (bash scripts/doctor.sh),
+# mas resolvemos o caminho do venv também via $0 para o script funcionar se for
+# chamado de outro diretório. faster-whisper e ctranslate2 são instalados no
+# venv do backend (backend/.venv), não no Python do sistema — testar com o
+# python3 do sistema sempre reporta "ausente" mesmo depois de instalado certo.
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+if [ -x "$REPO_ROOT/backend/.venv/bin/python3" ]; then
+  PY_BIN="$REPO_ROOT/backend/.venv/bin/python3"
+else
+  PY_BIN="python3"
+fi
+
 head_ "Sistema"
 ok "$(uname -srm)"
 command -v python3 >/dev/null && ok "Python $(python3 -V 2>&1 | cut -d' ' -f2)" || bad "Python 3 não encontrado"
@@ -28,7 +41,7 @@ head_ "GPU"
 if command -v nvidia-smi >/dev/null; then
   nvidia-smi --query-gpu=name,memory.total,memory.used,driver_version \
     --format=csv,noheader | while IFS= read -r line; do ok "$line"; done
-  python3 - <<'PY' 2>/dev/null || warn "ctranslate2 não instalado (vem com faster-whisper)"
+  "$PY_BIN" - <<'PY' 2>/dev/null || warn "ctranslate2 não instalado (vem com faster-whisper)"
 import ctranslate2
 n = ctranslate2.get_cuda_device_count()
 print(f"  \033[32m✔\033[0m CUDA visível para o CTranslate2: {n} dispositivo(s)")
@@ -38,9 +51,9 @@ else
 fi
 
 head_ "Transcrição"
-python3 -c "import faster_whisper" 2>/dev/null \
-  && ok "faster-whisper instalado" \
-  || bad "faster-whisper ausente — pip install faster-whisper"
+"$PY_BIN" -c "import faster_whisper" 2>/dev/null \
+  && ok "faster-whisper instalado ($PY_BIN)" \
+  || bad "faster-whisper ausente — backend/.venv/bin/pip install faster-whisper"
 
 head_ "Motores de IA locais"
 OLLAMA_URL="${CLOUDSENA_OLLAMA_BASE_URL:-http://localhost:11434}"

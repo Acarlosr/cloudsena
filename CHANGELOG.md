@@ -2,6 +2,20 @@
 
 Formato livre, em português, focado em decisão e motivo — não só "o que mudou".
 
+## [Não lançado] — correção pós-instalação real (13/08/2026)
+
+### Corrigido
+
+- **`make doctor` reportava `faster-whisper`/`ctranslate2` como ausentes mesmo
+  depois de instalados.** O script testava o `python3` do sistema, não o venv
+  do backend (`backend/.venv`), que é onde `pip install faster-whisper`
+  realmente instala os pacotes — então o diagnóstico dava falso negativo
+  mesmo com tudo certo. `scripts/doctor.sh` agora resolve o caminho do venv a
+  partir da raiz do repo (funciona independente de onde o script é chamado) e
+  usa esse Python nas duas checagens. Isso é só o diagnóstico: o `make dev`
+  real já usava o Python certo o tempo todo, então quem bateu nesse aviso não
+  estava bloqueado — só recebendo uma informação errada.
+
 ## [Não lançado] — revisão pós-entrega inicial (13/08/2026)
 
 ### Corrigido
