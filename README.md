@@ -47,6 +47,10 @@ make dev            # API em :8000 e interface em :3000
 
 Abra **http://localhost:3000**.
 
+> **Vai rodar num servidor e acessar de outra máquina?**
+> Siga [`docs/INSTALACAO_UBUNTU.md`](docs/INSTALACAO_UBUNTU.md) — tem a topologia com nginx,
+> os serviços systemd, a transferência dos vídeos e o backup do que não pode ser perdido.
+
 ### Rodando o worker separado
 
 Quando a GPU estiver ocupada transcrevendo, a API pode ficar lenta. Separe os processos:

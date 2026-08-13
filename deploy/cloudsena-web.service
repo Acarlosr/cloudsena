@@ -1,0 +1,23 @@
+# systemd — interface web (Next.js)
+# Requer build prévio: cd /srv/cloudsena/frontend && npm run build
+
+[Unit]
+Description=CloudSena Web
+After=network.target cloudsena.service
+
+[Service]
+Type=simple
+User=%i
+WorkingDirectory=/srv/cloudsena/frontend
+Environment="NODE_ENV=production"
+# A API só escuta em 127.0.0.1; quem fala com ela é este processo.
+Environment="NEXT_PUBLIC_API_URL=http://127.0.0.1:8000"
+# -H 0.0.0.0 para aceitar acesso das outras máquinas da rede.
+ExecStart=/usr/bin/npx next start -p 3000 -H 0.0.0.0
+Restart=on-failure
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
