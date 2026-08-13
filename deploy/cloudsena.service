@@ -1,0 +1,25 @@
+# systemd — API do CloudSena
+# sudo cp deploy/cloudsena*.service /etc/systemd/system/
+# sudo systemctl daemon-reload && sudo systemctl enable --now cloudsena cloudsena-worker
+
+[Unit]
+Description=CloudSena API
+After=network.target
+Wants=ollama.service
+
+[Service]
+Type=simple
+User=%i
+WorkingDirectory=/srv/cloudsena/backend
+Environment="CLOUDSENA_DATA_DIR=/srv/cloudsena/data"
+# A API não processa nada: quem transcreve é o worker.
+Environment="CLOUDSENA_WORKER_CONCURRENCY=0"
+EnvironmentFile=-/srv/cloudsena/.env
+ExecStart=/srv/cloudsena/backend/.venv/bin/python -m uvicorn app.main:app --host 0.0.0.0 --port 8000
+Restart=on-failure
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

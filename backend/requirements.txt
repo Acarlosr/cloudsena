@@ -1,0 +1,31 @@
+# ---- CloudSena backend ----
+fastapi>=0.115.0
+uvicorn[standard]>=0.32.0
+pydantic>=2.9.0
+pydantic-settings>=2.6.0
+SQLAlchemy>=2.0.36
+alembic>=1.14.0
+httpx>=0.27.2
+python-multipart>=0.0.12
+cryptography>=43.0.0
+numpy>=1.26.4
+tenacity>=9.0.0
+python-dotenv>=1.0.1
+orjson>=3.10.7
+
+# --- opcional: PostgreSQL em produção ---
+# psycopg[binary]>=3.2.0
+
+# --- opcional: transcrição local na GPU (recomendado) ---
+# faster-whisper>=1.0.3
+
+# --- opcional: embeddings locais sem Ollama ---
+# sentence-transformers>=3.2.0
+
+# --- opcional: YouTube ---
+# google-api-python-client>=2.149.0
+# google-auth-oauthlib>=1.2.1
+# yt-dlp>=2024.10.22
+
+# --- dev ---
+pytest>=8.3.0

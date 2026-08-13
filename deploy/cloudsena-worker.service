@@ -1,0 +1,23 @@
+# systemd — worker de processamento (usa a GPU)
+
+[Unit]
+Description=CloudSena Worker
+After=network.target cloudsena.service
+
+[Service]
+Type=simple
+User=%i
+WorkingDirectory=/srv/cloudsena/backend
+Environment="CLOUDSENA_DATA_DIR=/srv/cloudsena/data"
+Environment="CLOUDSENA_WORKER_CONCURRENCY=1"
+EnvironmentFile=-/srv/cloudsena/.env
+ExecStart=/srv/cloudsena/backend/.venv/bin/python -m app.workers.runner
+Restart=on-failure
+RestartSec=10
+# Transcrição é longa: dá tempo do job atual terminar antes de matar.
+TimeoutStopSec=300
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

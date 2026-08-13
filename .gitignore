@@ -1,0 +1,24 @@
+# dados do usuário — nunca versionar
+data/
+*.db
+*.db-wal
+*.db-shm
+.secret.key
+
+# ambiente
+.env
+.venv/
+backend/.venv/
+__pycache__/
+*.py[cod]
+
+# frontend
+node_modules/
+.next/
+out/
+next-env.d.ts
+
+# sistema
+.DS_Store
+Thumbs.db
+*.log
