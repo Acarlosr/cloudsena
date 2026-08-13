@@ -10,6 +10,7 @@ import { api } from "@/lib/api";
 import {
   STATUS_LABEL,
   STATUS_TONE,
+  WATCH_LABEL,
   cx,
   formatBytes,
   formatDuration,
@@ -151,7 +152,24 @@ export default function VideoWorkspace({ videoId }: { videoId: number }) {
                 </div>
               </div>
 
-              <div className="flex gap-2">
+              <div className="flex flex-wrap items-center gap-2">
+                {video.status === "ready" && (
+                  <select
+                    value={video.watch_status}
+                    onChange={async (e) => {
+                      await api.updateVideo(video.id, { watch_status: e.target.value });
+                      load();
+                    }}
+                    className="text-xs"
+                    title="Status de leitura"
+                  >
+                    {Object.entries(WATCH_LABEL).map(([value, label]) => (
+                      <option key={value} value={value}>
+                        {label}
+                      </option>
+                    ))}
+                  </select>
+                )}
                 <button
                   onClick={async () => {
                     await api.updateVideo(video.id, { is_favorite: !video.is_favorite });

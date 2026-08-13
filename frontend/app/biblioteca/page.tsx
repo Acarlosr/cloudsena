@@ -51,6 +51,16 @@ function LibraryContent() {
     });
   }, []);
 
+  // Clicar em outra biblioteca na sidebar navega para a mesma rota só trocando
+  // ?lib=, sem desmontar a página — sem isso, o estado ficava preso na primeira
+  // biblioteca aberta na sessão.
+  useEffect(() => {
+    if (libParam) {
+      setLibraryId(Number(libParam));
+      setCourse("");
+    }
+  }, [libParam]);
+
   useEffect(() => {
     if (libraryId) api.courses(libraryId).then(setCourses).catch(() => setCourses([]));
   }, [libraryId]);

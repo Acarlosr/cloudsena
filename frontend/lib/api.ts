@@ -144,4 +144,5 @@ export const api = {
     request<Job[]>(`/jobs${qs(params)}`),
   jobStats: () => request<Record<string, number>>("/jobs/stats"),
   retryJob: (id: number) => request<void>(`/jobs/${id}/retry`, { method: "POST" }),
+  requeueStale: () => request<{ requeued: number }>("/jobs/requeue-stale", { method: "POST" }),
 };

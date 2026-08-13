@@ -11,6 +11,7 @@ Se a máquina desligar no meio, o job retoma do último estágio concluído.
 from __future__ import annotations
 
 import asyncio
+import time
 from pathlib import Path
 
 from sqlalchemy import delete, select
@@ -91,10 +92,24 @@ def step_transcribe(db: Session, job: Job, video: Video) -> Transcript:
 
     _set_status(db, video, VideoStatus.transcribing, 0.10)
 
+    # Whisper chama isso a cada segmento (podem ser centenas numa aula longa).
+    # Persistimos no banco só a cada ~1,5s de trabalho real — o suficiente para a
+    # barra de progresso parecer contínua sem martelar o SQLite com um commit por
+    # segmento. O evento SSE, esse sim, é publicado sempre: é o que o usuário vê.
+    last_persisted = {"at": time.monotonic()}
+
     def on_progress(ratio: float, _preview: str) -> None:
         overall = 0.10 + ratio * 0.55
         video.stage_progress = overall
-        queue.heartbeat(db, job, progress=overall, stage="transcribing")
+        now = time.monotonic()
+        if now - last_persisted["at"] >= 1.5:
+            queue.heartbeat(db, job, progress=overall, stage="transcribing")
+            last_persisted["at"] = now
+        else:
+            bus.publish_threadsafe(
+                "job.progress",
+                {"job_id": job.id, "video_id": video.id, "progress": overall, "stage": "transcribing"},
+            )
 
     try:
         result = transcription.transcribe(
@@ -192,11 +207,16 @@ async def run_full_pipeline(db: Session, job: Job) -> None:
     if video is None:
         raise ValueError(f"Vídeo {job.video_id} não existe mais")
 
+    # step_probe (ffmpeg) e step_transcribe (faster-whisper) são bloqueantes e podem
+    # levar minutos. Rodar em thread evita travar o event loop — e com ele a API,
+    # o SSE de progresso e qualquer outro job, quando o worker roda embutido no
+    # mesmo processo (padrão em `make dev`). db.get acima já resolveu `video`;
+    # as duas chamadas usam a mesma sessão `db`, sempre de uma única thread por vez.
     queue.heartbeat(db, job, progress=0.02, stage="probe")
-    step_probe(db, video)
+    await asyncio.to_thread(step_probe, db, video)
 
     queue.heartbeat(db, job, progress=0.05, stage="transcribe")
-    transcript = step_transcribe(db, job, video)
+    transcript = await asyncio.to_thread(step_transcribe, db, job, video)
 
     queue.heartbeat(db, job, progress=0.70, stage="enrich")
     segments = await step_enrich(db, video, transcript)

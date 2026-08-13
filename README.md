@@ -188,6 +188,10 @@ Ver [`docs/COMERCIAL.md`](docs/COMERCIAL.md). Em resumo: o mesmo código atende 
 (licença única), o SaaS (assinatura) e a versão para equipes — porque autenticação, multi-biblioteca,
 limites de uso e telemetria já têm lugar reservado na modelagem.
 
+## Histórico de mudanças
+
+Ver [`CHANGELOG.md`](CHANGELOG.md).
+
 ## Licença
 
-Proprietário. Todos os direitos reservados.
+Proprietário. Todos os direitos reservados. Ver [`LICENSE`](LICENSE).

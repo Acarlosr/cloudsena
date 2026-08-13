@@ -73,6 +73,36 @@ def test_search_on_empty_index_is_graceful(client):
     assert response.json()["count"] == 0
 
 
+def test_watch_status_survives_unrelated_edit_but_not_new_progress(client):
+    """Regressão: um PATCH sem relação com o player não pode apagar um
+    'revisitar' escolhido pelo usuário — mas reportar progresso de novo, sim,
+    porque aí é o sinal legítimo de que o vídeo está sendo assistido de novo."""
+    from app.db.session import session_scope
+    from app.db.models import Video, VideoStatus
+
+    with session_scope() as db:
+        video = Video(
+            library_id=1,
+            title="Vídeo de teste",
+            duration_seconds=100.0,
+            watched_seconds=98.0,  # > 95%, dispararia auto-completar
+            status=VideoStatus.ready,
+        )
+        db.add(video)
+        db.flush()
+        video_id = video.id
+
+    r = client.patch(f"/api/videos/{video_id}", json={"watch_status": "revisit"})
+    assert r.json()["watch_status"] == "revisit"
+
+    r = client.patch(f"/api/videos/{video_id}", json={"is_favorite": True})
+    assert r.json()["watch_status"] == "revisit", "PATCH não relacionado sobrescreveu o status"
+    assert r.json()["is_favorite"] is True
+
+    r = client.patch(f"/api/videos/{video_id}", json={"watched_seconds": 99.0})
+    assert r.json()["watch_status"] == "completed", "progresso real deveria poder avançar o status"
+
+
 # --------------------------------------------------------------------------- #
 # Serviços puros
 # --------------------------------------------------------------------------- #

@@ -91,8 +91,6 @@ async def provider_error_handler(_: Request, exc: ProviderError) -> JSONResponse
     )
 
 
-api = FastAPI  # alias para clareza nos imports abaixo
-
 app.include_router(system.router, prefix="/api", dependencies=[Depends(require_token)])
 app.include_router(libraries.router, prefix="/api", dependencies=[Depends(require_token)])
 app.include_router(sources.router, prefix="/api", dependencies=[Depends(require_token)])

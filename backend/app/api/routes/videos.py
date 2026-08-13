@@ -107,17 +107,25 @@ def update_video(video_id: int, payload: VideoUpdate, db: Session = Depends(get_
     if not video:
         raise HTTPException(404, "Vídeo não encontrado")
     data = payload.model_dump(exclude_unset=True)
-    if "watch_status" in data and data["watch_status"]:
+    explicit_watch_status = bool(data.get("watch_status"))
+    watched_seconds_changed = data.get("watched_seconds") is not None
+
+    if explicit_watch_status:
         video.watch_status = WatchStatus(data.pop("watch_status"))
     for key, value in data.items():
         if value is not None:
             setattr(video, key, value)
 
-    # Marca como concluído automaticamente ao passar de 95% do vídeo.
-    if video.duration_seconds and video.watched_seconds / video.duration_seconds > 0.95:
-        video.watch_status = WatchStatus.completed
-    elif video.watched_seconds > 30 and video.watch_status == WatchStatus.unwatched:
-        video.watch_status = WatchStatus.in_progress
+    # Auto-avança o status de leitura conforme o progresso do player — mas só
+    # quando esta requisição de fato reportou progresso, e nunca por cima de uma
+    # escolha explícita do usuário (ex.: marcar "revisitar" num vídeo já visto).
+    # Sem essas duas guardas, qualquer PATCH sem relação com o player — favoritar,
+    # editar nota, renomear — reescreveria "revisitar" de volta para "concluído".
+    if not explicit_watch_status and watched_seconds_changed:
+        if video.duration_seconds and video.watched_seconds / video.duration_seconds > 0.95:
+            video.watch_status = WatchStatus.completed
+        elif video.watched_seconds > 30 and video.watch_status == WatchStatus.unwatched:
+            video.watch_status = WatchStatus.in_progress
 
     db.commit()
     db.refresh(video)

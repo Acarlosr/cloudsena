@@ -11,14 +11,19 @@ data/
 backend/.venv/
 __pycache__/
 *.py[cod]
+.pytest_cache/
 
 # frontend
 node_modules/
 .next/
 out/
 next-env.d.ts
+*.tsbuildinfo
 
 # sistema
 .DS_Store
 Thumbs.db
 *.log
+
+# lixo temporário (ex.: locks presos ao mexer no repo por uma ponte de arquivos)
+_to_delete/

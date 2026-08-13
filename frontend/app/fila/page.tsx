@@ -71,7 +71,7 @@ export default function QueuePage() {
         </div>
         <button
           onClick={async () => {
-            await fetch("/api/jobs/requeue-stale", { method: "POST" });
+            await api.requeueStale();
             load();
           }}
           className="btn-ghost"
