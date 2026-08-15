@@ -36,18 +36,30 @@ FTS_SQL = [
     """,
 ]
 
-# Roteamento padrão, alinhado ao hardware descrito no projeto:
-# RTX 3060 Ti local + OMP com DeepSeek/Gemini + Ollama como rede de segurança.
+# Roteamento padrão. A regra aqui é: o primeiro boot tem que FUNCIONAR sem nenhuma
+# chave de API e sem nenhum serviço extra no ar — só Ollama, que é o mínimo que a
+# instalação já exige. Apontar o padrão para OMP/OpenRouter parecia bom no papel,
+# mas quebrava o primeiro import de quem (ainda) não tem esses serviços rodando:
+# primário e fallback falhavam juntos e o vídeo terminava sem resumo nem chat.
+#
+# Modelos usados: `qwen2.5:7b` (~4,7 GB em Q4) cabe folgado numa 3060 Ti de 8 GB e
+# atende bem resumo/capítulos/tags/chat. `nomic-embed-text` é leve e é o que dá a
+# metade semântica da busca híbrida — sem ele sobra só o BM25.
+#
+# Quer usar OMP, DeepSeek, OpenRouter ou Gemini? Ligue o provider em
+# *Conexões de IA* e troque a rota por lá — nada aqui precisa mudar.
 DEFAULT_ROUTES = [
-    ("summarize", "omp", "deepseek/deepseek-v4-flash-0731", "ollama", "qwen2.5:7b-instruct", 0.2, 4000),
-    ("chapters", "omp", "deepseek/deepseek-v4-flash-0731", "ollama", "qwen2.5:7b-instruct", 0.2, 3000),
-    ("tags", "omp", "deepseek/deepseek-v4-flash-0731", "ollama", "qwen2.5:7b-instruct", 0.1, 1200),
-    ("chat", "omp", "deepseek/deepseek-v4-flash-0731", "ollama", "qwen2.5:7b-instruct", 0.2, 2000),
-    ("chat_complex", "omp", "deepseek/deepseek-v4-pro", "openrouter", "deepseek/deepseek-chat", 0.3, 3000),
-    ("rerank", "omp", "deepseek/deepseek-v4-flash-0731", "ollama", "qwen2.5:7b-instruct", 0.0, 1200),
-    ("vision", "omp", "google/gemini-3.1-flash-lite", "gemini", "gemini-2.5-flash", 0.2, 2000),
+    ("summarize", "ollama", "qwen2.5:7b", "", "", 0.2, 4000),
+    ("chapters", "ollama", "qwen2.5:7b", "", "", 0.2, 3000),
+    ("tags", "ollama", "qwen2.5:7b", "", "", 0.1, 1200),
+    ("chat", "ollama", "qwen2.5:7b", "", "", 0.2, 2000),
+    ("chat_complex", "ollama", "qwen2.5:7b", "", "", 0.3, 3000),
+    ("rerank", "ollama", "qwen2.5:7b", "", "", 0.0, 1200),
+    # Visão é opcional: só roda na análise de frames. Sem chave do Gemini a rota
+    # simplesmente não é usada — não quebra nada no pipeline principal.
+    ("vision", "gemini", "gemini-2.5-flash", "", "", 0.2, 2000),
     ("embeddings", "ollama", "nomic-embed-text", "", "", 0.0, 512),
-    ("title", "ollama", "qwen2.5:7b-instruct", "", "", 0.4, 40),
+    ("title", "ollama", "qwen2.5:7b", "", "", 0.4, 40),
     ("transcribe_fallback", "", "", "", "", 0.0, 2000),
 ]
 

@@ -6,6 +6,21 @@ Formato livre, em português, focado em decisão e motivo — não só "o que mu
 
 ### Corrigido
 
+- **O roteamento padrão quebrava no primeiro boot de quem não tem OMP.** Sete das
+  dez rotas apontavam para o OMP como primário, com fallback em
+  `qwen2.5:7b-instruct` (uma tag que o `ollama pull qwen2.5:7b` não cria) ou em
+  OpenRouter (que exige chave). Numa máquina com só o Ollama no ar — exatamente o
+  que a instalação pede — primário e fallback falhavam juntos, e o vídeo terminava
+  o pipeline sem resumo, sem capítulos, sem tags e sem chat. Agora o padrão usa só
+  Ollama com `qwen2.5:7b`, que é o mínimo já garantido pela instalação; OMP,
+  DeepSeek, OpenRouter e Gemini continuam disponíveis, mas como escolha explícita
+  em *Conexões de IA* em vez de pressuposto silencioso.
+- **`make doctor` não avisava sobre o modelo de embeddings faltando.** Sem
+  `nomic-embed-text` no Ollama, a indexação não quebra (o `step_index` captura a
+  falha e segue), mas a metade semântica da busca híbrida some sem nenhum aviso —
+  o usuário só descobriria comparando resultados. O diagnóstico agora verifica se
+  o modelo está presente e mostra o `ollama pull` exato quando não está.
+
 - **`make doctor` reportava `faster-whisper`/`ctranslate2` como ausentes mesmo
   depois de instalados.** O script testava o `python3` do sistema, não o venv
   do backend (`backend/.venv`), que é onde `pip install faster-whisper`

@@ -60,8 +60,18 @@ OLLAMA_URL="${CLOUDSENA_OLLAMA_BASE_URL:-http://localhost:11434}"
 if curl -sf --max-time 3 "$OLLAMA_URL/api/tags" >/dev/null 2>&1; then
   count=$(curl -s --max-time 3 "$OLLAMA_URL/api/tags" | grep -o '"name"' | wc -l | tr -d ' ')
   ok "Ollama respondendo em $OLLAMA_URL ($count modelo(s))"
-  curl -s --max-time 3 "$OLLAMA_URL/api/tags" \
-    | grep -o '"name":"[^"]*"' | cut -d'"' -f4 | sed 's/^/      · /'
+  TAGS=$(curl -s --max-time 3 "$OLLAMA_URL/api/tags")
+  printf '%s' "$TAGS" | grep -o '"name":"[^"]*"' | cut -d'"' -f4 | sed 's/^/      · /'
+  # A busca híbrida depende de um modelo de embeddings. Sem ele o pipeline não
+  # quebra (cai para BM25 puro), mas metade da busca some silenciosamente — então
+  # é melhor avisar aqui do que o usuário descobrir com a biblioteca já indexada.
+  EMB_MODEL="${CLOUDSENA_EMBEDDING_MODEL:-nomic-embed-text}"
+  if printf '%s' "$TAGS" | grep -q "\"name\":\"${EMB_MODEL}"; then
+    ok "modelo de embeddings '$EMB_MODEL' disponível"
+  else
+    warn "modelo de embeddings '$EMB_MODEL' ausente — ollama pull $EMB_MODEL"
+    warn "  (sem ele a busca funciona só por palavra-chave, sem semântica)"
+  fi
 else
   warn "Ollama não respondeu em $OLLAMA_URL (ollama serve)"
 fi
