@@ -38,28 +38,43 @@ FTS_SQL = [
 
 # Roteamento padrão. A regra aqui é: o primeiro boot tem que FUNCIONAR sem nenhuma
 # chave de API e sem nenhum serviço extra no ar — só Ollama, que é o mínimo que a
-# instalação já exige. Apontar o padrão para OMP/OpenRouter parecia bom no papel,
-# mas quebrava o primeiro import de quem (ainda) não tem esses serviços rodando:
-# primário e fallback falhavam juntos e o vídeo terminava sem resumo nem chat.
+# instalação já exige. Por isso todo primário remoto abaixo tem `ollama`/`qwen2.5:7b`
+# como fallback: sem chave, o provider fica "disabled" (ver seed_providers) e
+# `registry.resolve()` já cai pro fallback sozinho — sem essa rede de segurança,
+# um primário remoto sem chave quebraria o primeiro import (foi exatamente o bug
+# corrigido nesta mesma revisão, com OMP no lugar de OpenRouter).
 #
-# Modelos usados: `qwen2.5:7b` (~4,7 GB em Q4) cabe folgado numa 3060 Ti de 8 GB e
-# atende bem resumo/capítulos/tags/chat. `nomic-embed-text` é leve e é o que dá a
-# metade semântica da busca híbrida — sem ele sobra só o BM25.
+# Divisão de tarefas via OpenRouter, pensada pro plano DeepSeek V4 que o projeto
+# usa: tarefa de volume alto e formato fechado (resumo/capítulos/tags/rerank/
+# título, roda em todo vídeo importado) vai no Flash — rápido e ~5x mais barato.
+# A pergunta do usuário (`chat`/`chat_complex`) é o produto em si — é a citação
+# `[n]` que sustenta a promessa de "não inventar" — então vai no Pro, onde o
+# raciocínio mais forte compensa o custo maior (ainda assim, poucos centavos por
+# milhares de perguntas). Sem chave do OpenRouter, tudo cai pro Ollama local.
 #
-# Quer usar OMP, DeepSeek, OpenRouter ou Gemini? Ligue o provider em
-# *Conexões de IA* e troque a rota por lá — nada aqui precisa mudar.
+# `nomic-embed-text` fica sempre local (não é escolha de custo): toda busca gera
+# um embedding da pergunta, e latência de rede em toda busca seria sentida;
+# trocar de modelo de embedding também obriga reindexar a biblioteca inteira, já
+# que vetores de dimensão diferente são descartados (ver services/embeddings.py).
+#
+# Quer outro modelo, outro provider ou trocar Flash/Pro por tarefa? Ligue em
+# *Conexões de IA* e ajuste a rota por lá — nada aqui precisa mudar.
+_OPENROUTER_FLASH = "deepseek/deepseek-v4-flash-0731"
+_OPENROUTER_PRO = "deepseek/deepseek-v4-pro-0813"
+_OLLAMA_MODEL = "qwen2.5:7b"
+
 DEFAULT_ROUTES = [
-    ("summarize", "ollama", "qwen2.5:7b", "", "", 0.2, 4000),
-    ("chapters", "ollama", "qwen2.5:7b", "", "", 0.2, 3000),
-    ("tags", "ollama", "qwen2.5:7b", "", "", 0.1, 1200),
-    ("chat", "ollama", "qwen2.5:7b", "", "", 0.2, 2000),
-    ("chat_complex", "ollama", "qwen2.5:7b", "", "", 0.3, 3000),
-    ("rerank", "ollama", "qwen2.5:7b", "", "", 0.0, 1200),
+    ("summarize", "openrouter", _OPENROUTER_FLASH, "ollama", _OLLAMA_MODEL, 0.2, 4000),
+    ("chapters", "openrouter", _OPENROUTER_FLASH, "ollama", _OLLAMA_MODEL, 0.2, 3000),
+    ("tags", "openrouter", _OPENROUTER_FLASH, "ollama", _OLLAMA_MODEL, 0.1, 1200),
+    ("chat", "openrouter", _OPENROUTER_PRO, "ollama", _OLLAMA_MODEL, 0.2, 2000),
+    ("chat_complex", "openrouter", _OPENROUTER_PRO, "ollama", _OLLAMA_MODEL, 0.3, 3000),
+    ("rerank", "openrouter", _OPENROUTER_FLASH, "ollama", _OLLAMA_MODEL, 0.0, 1200),
     # Visão é opcional: só roda na análise de frames. Sem chave do Gemini a rota
     # simplesmente não é usada — não quebra nada no pipeline principal.
     ("vision", "gemini", "gemini-2.5-flash", "", "", 0.2, 2000),
     ("embeddings", "ollama", "nomic-embed-text", "", "", 0.0, 512),
-    ("title", "ollama", "qwen2.5:7b", "", "", 0.4, 40),
+    ("title", "openrouter", _OPENROUTER_FLASH, "ollama", _OLLAMA_MODEL, 0.4, 40),
     ("transcribe_fallback", "", "", "", "", 0.0, 2000),
 ]
 

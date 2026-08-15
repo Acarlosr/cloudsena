@@ -2,6 +2,28 @@
 
 Formato livre, em português, focado em decisão e motivo — não só "o que mudou".
 
+## [Não lançado] — roteamento via OpenRouter (15/08/2026)
+
+### Alterado
+
+- **Rotas padrão passaram a usar DeepSeek V4 via OpenRouter**, com Ollama como
+  fallback automático (não como padrão). Critério de divisão: tarefas de volume
+  alto e formato fechado — `summarize`, `chapters`, `tags`, `rerank`, `title`,
+  que rodam em todo vídeo importado — vão no **V4 Flash** (`deepseek-v4-flash-0731`,
+  ~5x mais barato). `chat` e `chat_complex` — a pergunta do usuário, onde mora a
+  citação `[n]` que sustenta a promessa de "não inventar" — vão no **V4 Pro**
+  (`deepseek-v4-pro-0813`), onde o raciocínio mais forte compensa o custo maior
+  (ainda assim, poucos centavos por milhares de perguntas). `embeddings` continua
+  fixo no Ollama local — não é decisão de custo: toda busca depende dele com
+  latência de rede, e trocar de modelo de embedding exige reindexar a biblioteca
+  inteira (vetores de dimensão diferente são descartados). Como o provider
+  `openrouter` só é ativado quando a chave é colada em *Conexões de IA*, até lá
+  `registry.resolve()` cai pro Ollama sozinho — não quebra o primeiro boot de
+  quem ainda não tem a chave, mesma rede de segurança do ajuste anterior.
+- Lista de modelos sugeridos do OpenRouter (`providers/catalog.py`) atualizada —
+  tinha `deepseek-r1` e `hermes-3` como sugestão, desatualizados frente aos
+  modelos atuais (`deepseek-v4-*`, `hermes-4-405b`/`hermes-4-70b`).
+
 ## [Não lançado] — correção pós-instalação real (13/08/2026)
 
 ### Corrigido

@@ -112,15 +112,18 @@ CATALOG: list[ProviderSpec] = [
         docs_url="https://openrouter.ai/docs",
         api_key_url="https://openrouter.ai/keys",
         supports_vision=True,
-        default_model="deepseek/deepseek-chat",
+        default_model="deepseek/deepseek-v4-flash-0731",
+        # Lista curada pro caso de uso do projeto: DeepSeek V4 (Flash pro lote,
+        # Pro pro chat — ver DEFAULT_ROUTES em db/init_db.py) e Hermes 4 como
+        # alternativa de raciocínio/agente da Nous Research.
         suggested_models=[
-            "deepseek/deepseek-chat",
-            "deepseek/deepseek-r1",
+            "deepseek/deepseek-v4-flash-0731",
+            "deepseek/deepseek-v4-pro-0813",
+            "nousresearch/hermes-4-405b",
+            "nousresearch/hermes-4-70b",
             "anthropic/claude-sonnet-4",
             "google/gemini-2.5-flash",
-            "meta-llama/llama-3.3-70b-instruct",
             "qwen/qwen-2.5-72b-instruct",
-            "nousresearch/hermes-3-llama-3.1-405b",
         ],
         extra_headers={
             "HTTP-Referer": "http://localhost:3000",
