@@ -44,13 +44,15 @@ FTS_SQL = [
 # um primário remoto sem chave quebraria o primeiro import (foi exatamente o bug
 # corrigido nesta mesma revisão, com OMP no lugar de OpenRouter).
 #
-# Divisão de tarefas via OpenRouter, pensada pro plano DeepSeek V4 que o projeto
-# usa: tarefa de volume alto e formato fechado (resumo/capítulos/tags/rerank/
-# título, roda em todo vídeo importado) vai no Flash — rápido e ~5x mais barato.
-# A pergunta do usuário (`chat`/`chat_complex`) é o produto em si — é a citação
-# `[n]` que sustenta a promessa de "não inventar" — então vai no Pro, onde o
-# raciocínio mais forte compensa o custo maior (ainda assim, poucos centavos por
-# milhares de perguntas). Sem chave do OpenRouter, tudo cai pro Ollama local.
+# Divisão de tarefas entre dois agregadores + Ollama, pelo preço de cada modelo em
+# cada um (checado em 15/08/2026 — preço de LLM muda toda hora, revisitar de vez
+# em quando): Flash sai mais barato no OpenRouter ($0,08/$0,16 por 1M vs $0,11/
+# $0,22 no Nous Portal); Pro sai mais barato no Nous Portal ($0,35/$0,70 vs
+# $0,44/$0,87 no OpenRouter). Por isso tarefa de volume alto e formato fechado
+# (resumo/capítulos/tags/rerank/título, roda em todo vídeo importado) vai pro
+# Flash via OpenRouter, e a pergunta do usuário (`chat`/`chat_complex`) — o
+# produto em si, é a citação `[n]` que sustenta a promessa de "não inventar" —
+# vai pro Pro via Nous Portal. Sem as chaves, tudo cai pro Ollama local.
 #
 # `nomic-embed-text` fica sempre local (não é escolha de custo): toda busca gera
 # um embedding da pergunta, e latência de rede em toda busca seria sentida;
@@ -60,15 +62,15 @@ FTS_SQL = [
 # Quer outro modelo, outro provider ou trocar Flash/Pro por tarefa? Ligue em
 # *Conexões de IA* e ajuste a rota por lá — nada aqui precisa mudar.
 _OPENROUTER_FLASH = "deepseek/deepseek-v4-flash-0731"
-_OPENROUTER_PRO = "deepseek/deepseek-v4-pro-0813"
+_NOUS_PRO = "deepseek/deepseek-v4-pro-0813"
 _OLLAMA_MODEL = "qwen2.5:7b"
 
 DEFAULT_ROUTES = [
     ("summarize", "openrouter", _OPENROUTER_FLASH, "ollama", _OLLAMA_MODEL, 0.2, 4000),
     ("chapters", "openrouter", _OPENROUTER_FLASH, "ollama", _OLLAMA_MODEL, 0.2, 3000),
     ("tags", "openrouter", _OPENROUTER_FLASH, "ollama", _OLLAMA_MODEL, 0.1, 1200),
-    ("chat", "openrouter", _OPENROUTER_PRO, "ollama", _OLLAMA_MODEL, 0.2, 2000),
-    ("chat_complex", "openrouter", _OPENROUTER_PRO, "ollama", _OLLAMA_MODEL, 0.3, 3000),
+    ("chat", "nous", _NOUS_PRO, "ollama", _OLLAMA_MODEL, 0.2, 2000),
+    ("chat_complex", "nous", _NOUS_PRO, "ollama", _OLLAMA_MODEL, 0.3, 3000),
     ("rerank", "openrouter", _OPENROUTER_FLASH, "ollama", _OLLAMA_MODEL, 0.0, 1200),
     # Visão é opcional: só roda na análise de frames. Sem chave do Gemini a rota
     # simplesmente não é usada — não quebra nada no pipeline principal.

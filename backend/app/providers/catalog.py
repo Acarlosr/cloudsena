@@ -152,7 +152,17 @@ CATALOG: list[ProviderSpec] = [
         docs_url="https://portal.nousresearch.com",
         api_key_url="https://portal.nousresearch.com",
         default_model="Hermes-4-70B",
-        suggested_models=["Hermes-4-70B", "Hermes-4-405B", "DeepHermes-3-Llama-3-8B-Preview"],
+        # O portal não vende só os modelos próprios (Hermes) — hoje revende DeepSeek
+        # também, às vezes mais barato que o OpenRouter pro mesmo modelo (ver
+        # DEFAULT_ROUTES em db/init_db.py). Vale conferir os dois preços, não supor.
+        suggested_models=[
+            "Hermes-4-70B",
+            "Hermes-4-405B",
+            "DeepHermes-3-Llama-3-8B-Preview",
+            "deepseek/deepseek-v4-flash-0731",
+            "deepseek/deepseek-v4-pro-0813",
+        ],
+        notes="Além do Hermes próprio, revende outros modelos (ex.: DeepSeek) — compare preço com o OpenRouter antes de fixar uma rota.",
     ),
     ProviderSpec(
         slug="openai",

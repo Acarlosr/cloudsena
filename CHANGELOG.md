@@ -2,6 +2,23 @@
 
 Formato livre, em português, focado em decisão e motivo — não só "o que mudou".
 
+## [Não lançado] — split OpenRouter/Nous por preço real (15/08/2026)
+
+### Alterado
+
+- **`chat` e `chat_complex` passaram de OpenRouter para o Nous Research
+  Portal**, mantendo o mesmo modelo (DeepSeek V4 Pro 0813). Motivo é só preço:
+  no Nous Portal esse modelo custa $0,35/$0,70 (in/out por 1M tokens) contra
+  $0,44/$0,87 no OpenRouter — ~20% mais barato. Já o V4 Flash 0731 (usado em
+  `summarize`/`chapters`/`tags`/`rerank`/`title`) é o inverso: $0,08/$0,16 no
+  OpenRouter contra $0,11/$0,22 no Nous Portal — por isso essas rotas continuam
+  no OpenRouter. Preço por provider muda com frequência; vale reconferir de vez
+  em quando em vez de fixar por hábito. O provider `nous` já existia no
+  catálogo (`providers/catalog.py`) — só precisou apontar a rota pra ele.
+- Lista de modelos sugeridos do provider `nous` atualizada: além do Hermes
+  próprio, o portal hoje revende outros modelos (DeepSeek incluso) — antes só
+  listava Hermes.
+
 ## [Não lançado] — roteamento via OpenRouter (15/08/2026)
 
 ### Alterado
