@@ -7,13 +7,17 @@ After=network.target cloudsena.service
 
 [Service]
 Type=simple
-User=%i
+User=acarlosr
 WorkingDirectory=/srv/cloudsena/frontend
 Environment="NODE_ENV=production"
 # A API só escuta em 127.0.0.1; quem fala com ela é este processo.
 Environment="NEXT_PUBLIC_API_URL=http://127.0.0.1:8000"
-# -H 0.0.0.0 para aceitar acesso das outras máquinas da rede.
-ExecStart=/usr/bin/npx next start -p 3000 -H 0.0.0.0
+# Só escuta em 127.0.0.1 de propósito: quem fica exposto na rede é o nginx
+# (ver deploy/nginx.conf), não o Next.js diretamente.
+# Se der erro "npx: command not found" ao iniciar (comum quando o Node foi
+# instalado via nvm, que não é visto pelo systemd), rode `which npx` no
+# terminal e troque a linha abaixo pelo caminho completo que aparecer.
+ExecStart=/usr/bin/npx next start -p 3000 -H 127.0.0.1
 Restart=on-failure
 RestartSec=5
 StandardOutput=journal

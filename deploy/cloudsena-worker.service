@@ -6,7 +6,7 @@ After=network.target cloudsena.service
 
 [Service]
 Type=simple
-User=%i
+User=acarlosr
 WorkingDirectory=/srv/cloudsena/backend
 Environment="CLOUDSENA_DATA_DIR=/srv/cloudsena/data"
 Environment="CLOUDSENA_WORKER_CONCURRENCY=1"

@@ -1,6 +1,6 @@
 # systemd — API do CloudSena
 # sudo cp deploy/cloudsena*.service /etc/systemd/system/
-# sudo systemctl daemon-reload && sudo systemctl enable --now cloudsena cloudsena-worker
+# sudo systemctl daemon-reload && sudo systemctl enable --now cloudsena cloudsena-worker cloudsena-web
 
 [Unit]
 Description=CloudSena API
@@ -9,13 +9,15 @@ Wants=ollama.service
 
 [Service]
 Type=simple
-User=%i
+User=acarlosr
 WorkingDirectory=/srv/cloudsena/backend
 Environment="CLOUDSENA_DATA_DIR=/srv/cloudsena/data"
 # A API não processa nada: quem transcreve é o worker.
 Environment="CLOUDSENA_WORKER_CONCURRENCY=0"
 EnvironmentFile=-/srv/cloudsena/.env
-ExecStart=/srv/cloudsena/backend/.venv/bin/python -m uvicorn app.main:app --host 0.0.0.0 --port 8000
+# Só escuta em 127.0.0.1 de propósito: quem fica exposto na rede é o nginx
+# (ver deploy/nginx.conf). API em 0.0.0.0 aqui furaria essa proteção.
+ExecStart=/srv/cloudsena/backend/.venv/bin/python -m uvicorn app.main:app --host 127.0.0.1 --port 8000
 Restart=on-failure
 RestartSec=5
 StandardOutput=journal
