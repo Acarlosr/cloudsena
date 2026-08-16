@@ -2,6 +2,35 @@
 
 Formato livre, em português, focado em decisão e motivo — não só "o que mudou".
 
+## [Não lançado] — importação de playlist do YouTube (16/08/2026)
+
+### Adicionado
+
+- **Importar vídeos direto de uma playlist do YouTube**, sem baixar o vídeo
+  inteiro. Fluxo: listar a playlist é só metadados (nenhum download); ao
+  transcrever, o CloudSena baixa **apenas o áudio** de cada vídeo (via
+  `yt-dlp`, sempre bem menor que o vídeo), transcreve local com o mesmo
+  Whisper dos cursos baixados, e descarta o áudio depois — mesma convenção de
+  arquivo temporário já usada pra vídeo local (`data/temp/{id}.wav`), então o
+  resto do pipeline (chunking, embeddings, busca) não precisa saber a origem.
+  Como não guardamos o vídeo, a reprodução na interface usa o player oficial
+  do YouTube embutido (`components/YouTubePlayer.tsx`) em vez do `<video>`
+  local com streaming por Range — citações e capítulos continuam pulando pro
+  segundo exato, só que via `seekTo` da API do YouTube em vez de
+  `currentTime`.
+  - Backend: `services/youtube.py` (listagem, download de áudio, thumbnail
+    direto da CDN do YouTube), `scanner.scan_youtube_source`/`preview_playlist`,
+    `POST /sources/preview-playlist`, ramificação em `step_probe`/
+    `step_transcribe`/`run_scan_source` no worker.
+  - Frontend: aba nova em *Importar vídeos* (pasta local vs. playlist do
+    YouTube), player condicional em `VideoWorkspace`.
+  - Testes: validação de URL vazia/inacessível na criação da fonte, e que
+    `preview-playlist` nunca estoura 500 (sempre responde `exists: false` com
+    mensagem legível).
+- `yt-dlp` promovido de dependência opcional/comentada para instalada por
+  padrão (`requirements.txt`) — é o que faz a importação de playlist
+  funcionar de fábrica, sem passo manual extra.
+
 ## [Não lançado] — split OpenRouter/Nous por preço real (15/08/2026)
 
 ### Alterado

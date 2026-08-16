@@ -29,7 +29,7 @@ from app.db.models import (
     VideoStatus,
     utcnow,
 )
-from app.services import chunking, embeddings, enrichment, media, scanner, transcription
+from app.services import chunking, embeddings, enrichment, media, scanner, transcription, youtube
 from app.workers import queue
 
 log = get_logger(__name__)
@@ -55,7 +55,24 @@ def _set_status(db: Session, video: Video, status: VideoStatus, progress: float 
 # Etapas
 # --------------------------------------------------------------------------- #
 def step_probe(db: Session, video: Video) -> None:
-    """Metadados técnicos + thumbnail. Barato e sempre local."""
+    """Metadados técnicos + thumbnail.
+
+    Vídeo local: ffprobe/ffmpeg no arquivo, sempre local, sem rede.
+    Vídeo do YouTube (`video.youtube_id` setado, `file_path` vazio): não há
+    arquivo pra sondar — a duração já veio da listagem da playlist (scanner.
+    scan_youtube_source); se por algum motivo veio zerada, uma única consulta
+    de metadados (sem baixar mídia) resolve. A thumbnail vem direto da CDN do
+    YouTube, sem precisar do vídeo.
+    """
+    if video.youtube_id:
+        if not video.duration_seconds:
+            video.duration_seconds = youtube.fetch_video_duration(video.youtube_id)
+            db.commit()
+        if not video.thumbnail_path or not (settings.data_dir / video.thumbnail_path).exists():
+            video.thumbnail_path = youtube.download_thumbnail(video.youtube_id, video.id)
+            db.commit()
+        return
+
     path = Path(video.file_path)
     if not path.exists():
         raise FileNotFoundError(f"Arquivo não encontrado: {path}")
@@ -88,7 +105,14 @@ def step_transcribe(db: Session, job: Job, video: Video) -> Transcript:
         return existing
 
     _set_status(db, video, VideoStatus.extracting, 0.05)
-    audio_path = media.extract_audio(Path(video.file_path), video.id)
+    # Local: ffmpeg extrai a trilha de áudio do arquivo já em disco.
+    # YouTube: baixa só o áudio (nunca o vídeo inteiro) direto pro mesmo
+    # caminho/convenção que extract_audio usaria — o resto da função (Whisper,
+    # cleanup_temp) não precisa saber de onde o áudio veio.
+    if video.youtube_id:
+        audio_path = youtube.download_audio_wav(video.youtube_id, video.id)
+    else:
+        audio_path = media.extract_audio(Path(video.file_path), video.id)
 
     _set_status(db, video, VideoStatus.transcribing, 0.10)
 
@@ -231,12 +255,17 @@ async def run_full_pipeline(db: Session, job: Job) -> None:
 
 
 def run_scan_source(db: Session, job: Job) -> None:
+    from app.db.models import SourceType
+
     source = db.get(Source, job.source_id)
     if source is None:
         raise ValueError(f"Fonte {job.source_id} não existe mais")
     source.sync_status = "syncing"
     db.commit()
-    result = scanner.scan_source(db, source)
+    if source.source_type == SourceType.youtube:
+        result = scanner.scan_youtube_source(db, source)
+    else:
+        result = scanner.scan_source(db, source)
     bus.publish_threadsafe(
         "source.scanned",
         {

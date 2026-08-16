@@ -182,7 +182,13 @@ def get_thumbnail(video_id: int, db: Session = Depends(get_db)) -> Response:
 def stream_video(video_id: int, request: Request, db: Session = Depends(get_db)) -> Response:
     """Streaming com suporte a Range — permite pular direto para um minuto."""
     video = db.get(Video, video_id)
-    if not video or not video.file_path:
+    if not video:
+        raise HTTPException(404, "Vídeo não encontrado")
+    if video.youtube_id:
+        raise HTTPException(
+            400, "Vídeo do YouTube não é servido por aqui — use o player embutido do YouTube."
+        )
+    if not video.file_path:
         raise HTTPException(404, "Vídeo não encontrado")
     path = Path(video.file_path)
     if not path.exists():

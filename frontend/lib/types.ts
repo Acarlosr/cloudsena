@@ -235,3 +235,19 @@ export interface FolderPreview {
   courses: string[];
   files: { path: string; name: string; title: string; size: number; course: string }[];
 }
+
+export interface PlaylistPreview {
+  exists: boolean;
+  error?: string;
+  count: number;
+  courses: string[];
+  files: {
+    path: string;
+    name: string;
+    title: string;
+    size: number;
+    course: string;
+    duration: number;
+    thumbnail: string;
+  }[];
+}

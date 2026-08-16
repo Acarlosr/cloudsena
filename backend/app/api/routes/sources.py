@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 
 from app.db.models import Library, Source, SourceType, TaskKind
 from app.db.session import get_db
-from app.schemas import FolderPreviewRequest, SourceCreate, SourceOut
+from app.schemas import FolderPreviewRequest, PlaylistPreviewRequest, SourceCreate, SourceOut
 from app.services import scanner
 from app.workers import queue
 
@@ -33,6 +33,13 @@ def preview_folder(payload: FolderPreviewRequest) -> dict:
     return scanner.preview_folder(payload.path)
 
 
+@router.post("/preview-playlist")
+def preview_playlist(payload: PlaylistPreviewRequest) -> dict:
+    """Lista os vídeos de uma playlist do YouTube antes de confirmar — só
+    metadados, nenhum download acontece aqui."""
+    return scanner.preview_playlist(payload.url)
+
+
 @router.post("", response_model=SourceOut, status_code=201)
 def create_source(payload: SourceCreate, db: Session = Depends(get_db)) -> SourceOut:
     if not db.get(Library, payload.library_id):
@@ -43,6 +50,12 @@ def create_source(payload: SourceCreate, db: Session = Depends(get_db)) -> Sourc
         preview = scanner.preview_folder(payload.root_path)
         if not preview["exists"]:
             raise HTTPException(400, f"Pasta não encontrada: {payload.root_path}")
+    elif source_type == SourceType.youtube:
+        if not payload.url.strip():
+            raise HTTPException(400, "Informe a URL da playlist")
+        preview = scanner.preview_playlist(payload.url)
+        if not preview["exists"]:
+            raise HTTPException(400, preview.get("error") or "Playlist inacessível")
 
     source = Source(
         library_id=payload.library_id,
@@ -56,7 +69,9 @@ def create_source(payload: SourceCreate, db: Session = Depends(get_db)) -> Sourc
     db.commit()
     db.refresh(source)
 
-    if payload.scan_now and source_type == SourceType.local_folder:
+    # Fila de scan roda pra ambos os tipos hoje suportados de verdade (a fonte
+    # 'manual' não tem varredura — vídeos são adicionados um a um por outra via).
+    if payload.scan_now and source_type in (SourceType.local_folder, SourceType.youtube):
         queue.enqueue(
             db,
             TaskKind.scan_source,

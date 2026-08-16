@@ -13,6 +13,7 @@ from app.config import settings
 from app.core.logging import get_logger
 from app.core.security import file_fingerprint
 from app.db.models import Job, JobStatus, Source, TaskKind, Video, VideoStatus
+from app.services import youtube
 
 log = get_logger(__name__)
 
@@ -132,6 +133,110 @@ def scan_source(db: Session, source: Source, *, auto_queue: bool = True) -> Scan
     source.sync_status = "idle"
     db.commit()
     return result
+
+
+def scan_youtube_source(db: Session, source: Source, *, auto_queue: bool = True) -> ScanResult:
+    """Lista uma playlist do YouTube (só metadados) e cria os vídeos faltantes.
+
+    Espelha `scan_source`, mas sem tocar em disco: dedupe é por `youtube_id`
+    em vez de hash de arquivo, e nenhum download acontece aqui — só na hora de
+    transcrever cada vídeo (ver `youtube.download_audio_wav`, chamado pelo
+    worker em `workers/pipeline.step_transcribe`).
+    """
+    result = ScanResult()
+    playlist_title, entries = youtube.extract_playlist(source.url)
+    result.files_seen = len(entries)
+    log.info("Scan YouTube '%s': %d vídeos em %s", source.title, len(entries), source.url)
+
+    course_name = source.title or playlist_title
+
+    for entry in entries:
+        try:
+            existing = db.scalar(
+                select(Video).where(
+                    Video.library_id == source.library_id, Video.youtube_id == entry.youtube_id
+                )
+            )
+            if existing:
+                result.skipped += 1
+                continue
+
+            video = Video(
+                library_id=source.library_id,
+                source_id=source.id,
+                title=entry.title,
+                course=course_name,
+                order_index=entry.playlist_index,
+                youtube_id=entry.youtube_id,
+                url=entry.url,
+                channel=entry.channel,
+                duration_seconds=entry.duration_seconds,
+                # dedupe por hash não se aplica aqui (nada baixado ainda); usa o
+                # próprio id do YouTube, que já é globalmente único.
+                file_hash=f"youtube:{entry.youtube_id}",
+                status=VideoStatus.discovered,
+            )
+            db.add(video)
+            db.flush()
+
+            if auto_queue:
+                db.add(
+                    Job(
+                        kind=TaskKind.full_pipeline,
+                        status=JobStatus.pending,
+                        video_id=video.id,
+                        library_id=source.library_id,
+                        source_id=source.id,
+                        priority=100 + video.order_index,
+                        max_attempts=settings.job_max_attempts,
+                    )
+                )
+                video.status = VideoStatus.queued
+            db.commit()
+            result.discovered += 1
+        except Exception as exc:  # noqa: BLE001
+            db.rollback()
+            result.errors += 1
+            log.exception("Erro ao registrar vídeo %s da playlist: %s", entry.youtube_id, exc)
+
+    source.title = source.title or playlist_title
+    source.stats = {
+        "files_seen": result.files_seen,
+        "discovered": result.discovered,
+        "skipped": result.skipped,
+        "errors": result.errors,
+    }
+    source.sync_status = "idle"
+    db.commit()
+    return result
+
+
+def preview_playlist(url: str, limit: int = 200) -> dict:
+    """Pré-visualização usada pela UI antes de confirmar a importação de uma
+    playlist — espelha `preview_folder`, mas sem tocar em disco."""
+    try:
+        playlist_title, entries = youtube.extract_playlist(url)
+    except youtube.YoutubeError as exc:
+        return {"exists": False, "error": str(exc), "count": 0, "courses": [], "files": []}
+
+    return {
+        "exists": True,
+        "count": len(entries),
+        "total_bytes": 0,  # não baixamos nada na prévia — não há tamanho pra estimar
+        "courses": [playlist_title],
+        "files": [
+            {
+                "path": e.url,
+                "name": e.title,
+                "title": e.title,
+                "size": 0,
+                "course": playlist_title,
+                "duration": e.duration_seconds,
+                "thumbnail": e.thumbnail,
+            }
+            for e in entries[:limit]
+        ],
+    }
 
 
 def preview_folder(root_path: str, limit: int = 200) -> dict:

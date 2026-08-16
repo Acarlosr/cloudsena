@@ -3,9 +3,11 @@
 import { useEffect, useState } from "react";
 
 import { api } from "@/lib/api";
-import { cx, formatBytes } from "@/lib/format";
-import type { FolderPreview, Library } from "@/lib/types";
+import { cx, formatBytes, formatDuration } from "@/lib/format";
+import type { FolderPreview, Library, PlaylistPreview } from "@/lib/types";
 import { ErrorNote, Modal, Spinner, Toggle } from "./ui";
+
+type Mode = "local_folder" | "youtube";
 
 export default function ImportDialog({
   open,
@@ -20,8 +22,14 @@ export default function ImportDialog({
 }) {
   const [libraries, setLibraries] = useState<Library[]>([]);
   const [libraryId, setLibraryId] = useState<number | undefined>(defaultLibraryId);
+  const [mode, setMode] = useState<Mode>("local_folder");
+
   const [path, setPath] = useState("");
-  const [preview, setPreview] = useState<FolderPreview | null>(null);
+  const [folderPreview, setFolderPreview] = useState<FolderPreview | null>(null);
+
+  const [playlistUrl, setPlaylistUrl] = useState("");
+  const [playlistPreview, setPlaylistPreview] = useState<PlaylistPreview | null>(null);
+
   const [checking, setChecking] = useState(false);
   const [saving, setSaving] = useState(false);
   const [autoProcess, setAutoProcess] = useState(true);
@@ -35,16 +43,17 @@ export default function ImportDialog({
     });
   }, [open]);
 
+  // Prévia da pasta local — debounced.
   useEffect(() => {
-    if (!path.trim()) {
-      setPreview(null);
+    if (mode !== "local_folder" || !path.trim()) {
+      setFolderPreview(null);
       return;
     }
     const timer = setTimeout(async () => {
       setChecking(true);
       setError("");
       try {
-        setPreview(await api.previewFolder(path.trim()));
+        setFolderPreview(await api.previewFolder(path.trim()));
       } catch (e: any) {
         setError(e.message);
       } finally {
@@ -52,24 +61,64 @@ export default function ImportDialog({
       }
     }, 500);
     return () => clearTimeout(timer);
-  }, [path]);
+  }, [path, mode]);
+
+  // Prévia da playlist do YouTube — debounced. Só metadados, nada é baixado.
+  useEffect(() => {
+    if (mode !== "youtube" || !playlistUrl.trim()) {
+      setPlaylistPreview(null);
+      return;
+    }
+    const timer = setTimeout(async () => {
+      setChecking(true);
+      setError("");
+      try {
+        const result = await api.previewPlaylist(playlistUrl.trim());
+        setPlaylistPreview(result);
+        if (!result.exists && result.error) setError(result.error);
+      } catch (e: any) {
+        setError(e.message);
+      } finally {
+        setChecking(false);
+      }
+    }, 600);
+    return () => clearTimeout(timer);
+  }, [playlistUrl, mode]);
+
+  const reset = () => {
+    setPath("");
+    setFolderPreview(null);
+    setPlaylistUrl("");
+    setPlaylistPreview(null);
+  };
 
   const submit = async () => {
-    if (!libraryId || !preview?.exists) return;
+    if (!libraryId) return;
     setSaving(true);
     setError("");
     try {
-      await api.createSource({
-        library_id: libraryId,
-        source_type: "local_folder",
-        root_path: path.trim(),
-        title: path.trim().split("/").filter(Boolean).pop() || "Pasta",
-        scan_now: autoProcess,
-      });
+      if (mode === "local_folder") {
+        if (!folderPreview?.exists) return;
+        await api.createSource({
+          library_id: libraryId,
+          source_type: "local_folder",
+          root_path: path.trim(),
+          title: path.trim().split("/").filter(Boolean).pop() || "Pasta",
+          scan_now: autoProcess,
+        });
+      } else {
+        if (!playlistPreview?.exists) return;
+        await api.createSource({
+          library_id: libraryId,
+          source_type: "youtube",
+          url: playlistUrl.trim(),
+          title: playlistPreview.courses[0] || "Playlist do YouTube",
+          scan_now: autoProcess,
+        });
+      }
       onDone?.();
       onClose();
-      setPath("");
-      setPreview(null);
+      reset();
     } catch (e: any) {
       setError(e.message);
     } finally {
@@ -77,8 +126,13 @@ export default function ImportDialog({
     }
   };
 
+  const canSubmit =
+    !!libraryId &&
+    !saving &&
+    (mode === "local_folder" ? !!folderPreview?.exists : !!playlistPreview?.exists);
+
   return (
-    <Modal open={open} onClose={onClose} title="Importar cursos de uma pasta" wide>
+    <Modal open={open} onClose={onClose} title="Importar vídeos" wide>
       <div className="space-y-5">
         <div>
           <label className="label">Biblioteca de destino</label>
@@ -95,53 +149,96 @@ export default function ImportDialog({
           </select>
         </div>
 
-        <div>
-          <label className="label">Caminho da pasta no servidor</label>
-          <input
-            value={path}
-            onChange={(e) => setPath(e.target.value)}
-            placeholder="/home/usuario/Cursos/Trading"
-            className="w-full font-mono text-[13px]"
-            autoFocus
-          />
-          <p className="mt-1.5 text-[11px] text-slate-500">
-            O caminho é lido pelo backend. Os arquivos permanecem onde estão — o CloudSena nunca
-            copia nem move seus vídeos.
-          </p>
+        <div className="flex gap-1 rounded-lg border border-white/[.07] bg-ink-850 p-1 w-fit">
+          {(
+            [
+              { value: "local_folder", label: "Pasta local" },
+              { value: "youtube", label: "Playlist do YouTube" },
+            ] as { value: Mode; label: string }[]
+          ).map((opt) => (
+            <button
+              key={opt.value}
+              onClick={() => {
+                setMode(opt.value);
+                setError("");
+              }}
+              className={cx(
+                "rounded-md px-3 py-1.5 text-xs transition",
+                mode === opt.value
+                  ? "bg-accent/20 text-accent-soft"
+                  : "text-slate-400 hover:text-white",
+              )}
+            >
+              {opt.label}
+            </button>
+          ))}
         </div>
 
-        {checking && (
-          <div className="flex items-center gap-2 text-sm text-slate-400">
-            <Spinner /> Verificando pasta…
+        {mode === "local_folder" ? (
+          <div>
+            <label className="label">Caminho da pasta no servidor</label>
+            <input
+              value={path}
+              onChange={(e) => setPath(e.target.value)}
+              placeholder="/home/usuario/Cursos/Trading"
+              className="w-full font-mono text-[13px]"
+              autoFocus
+            />
+            <p className="mt-1.5 text-[11px] text-slate-500">
+              O caminho é lido pelo backend. Os arquivos permanecem onde estão — o CloudSena nunca
+              copia nem move seus vídeos.
+            </p>
+          </div>
+        ) : (
+          <div>
+            <label className="label">URL da playlist</label>
+            <input
+              value={playlistUrl}
+              onChange={(e) => setPlaylistUrl(e.target.value)}
+              placeholder="https://www.youtube.com/playlist?list=..."
+              className="w-full font-mono text-[13px]"
+              autoFocus
+            />
+            <p className="mt-1.5 text-[11px] text-slate-500">
+              Nada é baixado agora — só a lista de vídeos. Na transcrição, o CloudSena baixa
+              apenas o áudio de cada vídeo (nunca o vídeo inteiro) e descarta depois. A reprodução
+              usa o player do YouTube.
+            </p>
           </div>
         )}
 
-        {preview && !checking && (
+        {checking && (
+          <div className="flex items-center gap-2 text-sm text-slate-400">
+            <Spinner /> {mode === "local_folder" ? "Verificando pasta…" : "Lendo playlist…"}
+          </div>
+        )}
+
+        {mode === "local_folder" && folderPreview && !checking && (
           <div
             className={cx(
               "rounded-xl border p-4",
-              preview.exists
+              folderPreview.exists
                 ? "border-signal-lime/25 bg-signal-lime/[.05]"
                 : "border-signal-rose/25 bg-signal-rose/[.05]",
             )}
           >
-            {preview.exists ? (
+            {folderPreview.exists ? (
               <>
                 <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
                   <span className="font-semibold text-signal-lime">
-                    {preview.count} vídeo(s) encontrados
+                    {folderPreview.count} vídeo(s) encontrados
                   </span>
-                  {preview.total_bytes ? (
-                    <span className="text-slate-400">{formatBytes(preview.total_bytes)}</span>
+                  {folderPreview.total_bytes ? (
+                    <span className="text-slate-400">{formatBytes(folderPreview.total_bytes)}</span>
                   ) : null}
                   <span className="text-slate-400">
-                    {preview.courses.length} curso(s) detectados
+                    {folderPreview.courses.length} curso(s) detectados
                   </span>
                 </div>
 
-                {preview.courses.length > 0 && (
+                {folderPreview.courses.length > 0 && (
                   <div className="mt-3 flex flex-wrap gap-1.5">
-                    {preview.courses.slice(0, 12).map((course) => (
+                    {folderPreview.courses.slice(0, 12).map((course) => (
                       <span key={course} className="chip">
                         {course}
                       </span>
@@ -149,9 +246,9 @@ export default function ImportDialog({
                   </div>
                 )}
 
-                {preview.files.length > 0 && (
+                {folderPreview.files.length > 0 && (
                   <ul className="mt-3 max-h-40 space-y-1 overflow-y-auto scroll-thin text-[12px] text-slate-400">
-                    {preview.files.slice(0, 30).map((file) => (
+                    {folderPreview.files.slice(0, 30).map((file) => (
                       <li key={file.path} className="flex justify-between gap-3">
                         <span className="truncate">{file.title}</span>
                         <span className="mono-num shrink-0 text-slate-600">
@@ -166,6 +263,32 @@ export default function ImportDialog({
               <p className="text-sm text-signal-rose">
                 Pasta não encontrada. Confira o caminho exato no servidor onde o backend roda.
               </p>
+            )}
+          </div>
+        )}
+
+        {mode === "youtube" && playlistPreview && !checking && playlistPreview.exists && (
+          <div className="rounded-xl border border-signal-lime/25 bg-signal-lime/[.05] p-4">
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
+              <span className="font-semibold text-signal-lime">
+                {playlistPreview.count} vídeo(s) na playlist
+              </span>
+              <span className="text-slate-400">{playlistPreview.courses[0]}</span>
+            </div>
+
+            {playlistPreview.files.length > 0 && (
+              <ul className="mt-3 max-h-40 space-y-1 overflow-y-auto scroll-thin text-[12px] text-slate-400">
+                {playlistPreview.files.slice(0, 30).map((file) => (
+                  <li key={file.path} className="flex justify-between gap-3">
+                    <span className="truncate">{file.title}</span>
+                    {file.duration > 0 && (
+                      <span className="mono-num shrink-0 text-slate-600">
+                        {formatDuration(file.duration)}
+                      </span>
+                    )}
+                  </li>
+                ))}
+              </ul>
             )}
           </div>
         )}
@@ -186,13 +309,16 @@ export default function ImportDialog({
           <button onClick={onClose} className="btn-ghost">
             Cancelar
           </button>
-          <button
-            onClick={submit}
-            disabled={!preview?.exists || saving || !libraryId}
-            className="btn-primary"
-          >
+          <button onClick={submit} disabled={!canSubmit} className="btn-primary">
             {saving && <Spinner />}
-            Importar {preview?.exists ? `${preview.count} vídeo(s)` : ""}
+            Importar{" "}
+            {mode === "local_folder"
+              ? folderPreview?.exists
+                ? `${folderPreview.count} vídeo(s)`
+                : ""
+              : playlistPreview?.exists
+                ? `${playlistPreview.count} vídeo(s)`
+                : ""}
           </button>
         </div>
       </div>

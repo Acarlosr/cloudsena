@@ -72,6 +72,10 @@ class FolderPreviewRequest(BaseModel):
     path: str
 
 
+class PlaylistPreviewRequest(BaseModel):
+    url: str
+
+
 # --------------------------------------------------------------------------- #
 # Vídeos
 # --------------------------------------------------------------------------- #

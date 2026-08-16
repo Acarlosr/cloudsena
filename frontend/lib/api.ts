@@ -3,6 +3,7 @@ import type {
   FolderPreview,
   Job,
   Library,
+  PlaylistPreview,
   Provider,
   RoutingRule,
   SearchHit,
@@ -79,6 +80,11 @@ export const api = {
     request<FolderPreview>("/sources/preview-folder", {
       method: "POST",
       body: JSON.stringify({ path }),
+    }),
+  previewPlaylist: (url: string) =>
+    request<PlaylistPreview>("/sources/preview-playlist", {
+      method: "POST",
+      body: JSON.stringify({ url }),
     }),
   createSource: (body: Record<string, unknown>) =>
     request<Source>("/sources", { method: "POST", body: JSON.stringify(body) }),

@@ -5,6 +5,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import AnswerBlock from "@/components/AnswerBlock";
 import { Badge, ErrorNote, Panel, ProgressBar, Spinner } from "@/components/ui";
+import YouTubePlayer, { YouTubePlayerHandle } from "@/components/YouTubePlayer";
 import { useEvents } from "@/hooks/useEvents";
 import { api } from "@/lib/api";
 import {
@@ -27,8 +28,10 @@ export default function VideoWorkspace({ videoId }: { videoId: number }) {
   const [current, setCurrent] = useState(0);
   const [error, setError] = useState("");
   const videoRef = useRef<HTMLVideoElement>(null);
+  const ytPlayerRef = useRef<YouTubePlayerHandle>(null);
   const activeLineRef = useRef<HTMLButtonElement>(null);
   const [followTranscript, setFollowTranscript] = useState(true);
+  const [deepLinkSeconds, setDeepLinkSeconds] = useState<number | undefined>(undefined);
 
   const load = useCallback(async () => {
     try {
@@ -50,7 +53,14 @@ export default function VideoWorkspace({ videoId }: { videoId: number }) {
   // Deep link: /video/12?t=860 abre já no minuto certo.
   useEffect(() => {
     const t = Number(new URLSearchParams(window.location.search).get("t"));
-    if (t && videoRef.current) {
+    if (!t) return;
+    if (video?.youtube_id) {
+      // O player do YouTube só existe depois de montado; passamos o segundo
+      // inicial como prop (playerVars.start) em vez de chamar seek aqui.
+      setDeepLinkSeconds(t);
+      return;
+    }
+    if (videoRef.current) {
       const el = videoRef.current;
       const seek = () => {
         el.currentTime = t;
@@ -58,7 +68,7 @@ export default function VideoWorkspace({ videoId }: { videoId: number }) {
       };
       el.readyState >= 1 ? (el.currentTime = t) : el.addEventListener("loadedmetadata", seek);
     }
-  }, [video?.id]);
+  }, [video?.id, video?.youtube_id]);
 
   useEvents((event) => {
     if (event.kind === "video.status" && event.data.video_id === videoId) load();
@@ -67,13 +77,21 @@ export default function VideoWorkspace({ videoId }: { videoId: number }) {
   // Salva progresso de leitura a cada 15s.
   useEffect(() => {
     const timer = setInterval(() => {
+      if (video?.youtube_id) {
+        // A API do YouTube não expõe "pausado" tão diretamente quanto o
+        // <video> nativo — salvar mesmo parado é inofensivo (só regrava a
+        // mesma posição), então não vale complicar por essa diferença.
+        const t = ytPlayerRef.current?.getCurrentTime() ?? 0;
+        if (t > 5) api.updateVideo(videoId, { watched_seconds: t }).catch(() => {});
+        return;
+      }
       const el = videoRef.current;
       if (el && el.currentTime > 5 && !el.paused) {
         api.updateVideo(videoId, { watched_seconds: el.currentTime }).catch(() => {});
       }
     }, 15000);
     return () => clearInterval(timer);
-  }, [videoId]);
+  }, [videoId, video?.youtube_id]);
 
   useEffect(() => {
     if (followTranscript && tab === "transcricao") {
@@ -82,6 +100,11 @@ export default function VideoWorkspace({ videoId }: { videoId: number }) {
   }, [current, followTranscript, tab]);
 
   const seek = (seconds: number) => {
+    if (video?.youtube_id) {
+      ytPlayerRef.current?.seek(seconds);
+      window.scrollTo({ top: 0, behavior: "smooth" });
+      return;
+    }
     const el = videoRef.current;
     if (!el) return;
     el.currentTime = seconds;
@@ -120,15 +143,24 @@ export default function VideoWorkspace({ videoId }: { videoId: number }) {
         {/* ------------------------- coluna do player ------------------------- */}
         <div className="space-y-4">
           <div className="overflow-hidden rounded-2xl border border-white/[.07] bg-black shadow-panel">
-            <video
-              ref={videoRef}
-              controls
-              preload="metadata"
-              poster={video.thumbnail_path ? api.thumbUrl(video.id) : undefined}
-              src={api.streamUrl(video.id)}
-              onTimeUpdate={(e) => setCurrent(e.currentTarget.currentTime)}
-              className="aspect-video w-full bg-black"
-            />
+            {video.youtube_id ? (
+              <YouTubePlayer
+                ref={ytPlayerRef}
+                youtubeId={video.youtube_id}
+                startSeconds={deepLinkSeconds}
+                onTimeUpdate={setCurrent}
+              />
+            ) : (
+              <video
+                ref={videoRef}
+                controls
+                preload="metadata"
+                poster={video.thumbnail_path ? api.thumbUrl(video.id) : undefined}
+                src={api.streamUrl(video.id)}
+                onTimeUpdate={(e) => setCurrent(e.currentTarget.currentTime)}
+                className="aspect-video w-full bg-black"
+              />
+            )}
           </div>
 
           <div>

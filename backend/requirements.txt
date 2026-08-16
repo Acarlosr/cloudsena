@@ -22,10 +22,8 @@ orjson>=3.10.7
 # --- opcional: embeddings locais sem Ollama ---
 # sentence-transformers>=3.2.0
 
-# --- opcional: YouTube ---
-# google-api-python-client>=2.149.0
-# google-auth-oauthlib>=1.2.1
-# yt-dlp>=2024.10.22
+# --- opcional: importar playlists do YouTube (ver services/youtube.py) ---
+yt-dlp>=2024.10.22
 
 # --- dev ---
 pytest>=8.3.0

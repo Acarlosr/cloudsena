@@ -73,6 +73,44 @@ def test_search_on_empty_index_is_graceful(client):
     assert response.json()["count"] == 0
 
 
+def test_youtube_source_requires_url(client):
+    """Fonte tipo YouTube sem URL não pode ser criada — sem isso, uma fonte
+    'fantasma' entraria no banco e nunca teria o que varrer."""
+    response = client.post(
+        "/api/sources",
+        json={"library_id": 1, "source_type": "youtube", "url": ""},
+    )
+    assert response.status_code == 400
+
+
+def test_youtube_source_rejects_unreachable_playlist(client):
+    """Playlist inválida/inacessível é rejeitada na criação, não descoberta
+    silenciosamente depois na fila (onde o erro ficaria escondido num job
+    falho em vez de um 400 imediato pro usuário)."""
+    response = client.post(
+        "/api/sources",
+        json={
+            "library_id": 1,
+            "source_type": "youtube",
+            "url": "https://www.youtube.com/playlist?list=isto-nao-existe-de-verdade",
+        },
+    )
+    assert response.status_code == 400
+
+
+def test_preview_playlist_returns_error_not_exception(client):
+    """preview-playlist nunca deve estourar 500 por URL inválida — sempre
+    responde 200 com exists=False e uma mensagem de erro legível."""
+    response = client.post(
+        "/api/sources/preview-playlist",
+        json={"url": "https://www.youtube.com/playlist?list=isto-nao-existe-de-verdade"},
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["exists"] is False
+    assert body.get("error")
+
+
 def test_watch_status_survives_unrelated_edit_but_not_new_progress(client):
     """Regressão: um PATCH sem relação com o player não pode apagar um
     'revisitar' escolhido pelo usuário — mas reportar progresso de novo, sim,
